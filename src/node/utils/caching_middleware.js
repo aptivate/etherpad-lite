@@ -25,7 +25,6 @@ var semver = require('semver');
 
 var existsSync = (semver.satisfies(process.version, '>=0.8.0')) ? fs.existsSync : path.existsSync;
 
-console.warn("foo", settings.cacheDirPath);
 var CACHE_DIR = settings.cacheDirPath
 CACHE_DIR = existsSync(CACHE_DIR) ? CACHE_DIR : undefined;
 

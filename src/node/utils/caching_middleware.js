@@ -43,7 +43,8 @@ try {
   _crypto = undefined;
 }
 
-var CACHE_DIR = path.normalize(path.join(settings.root, 'var/'));
+console.warn("foo", settings.cacheDirPath);
+var CACHE_DIR = settings.cacheDirPath
 CACHE_DIR = existsSync(CACHE_DIR) ? CACHE_DIR : undefined;
 
 var responseCache = {};

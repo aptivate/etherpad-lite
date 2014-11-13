@@ -36,6 +36,11 @@ exports.root = absolutePaths.findEtherpadRoot();
 console.log(`All relative paths will be interpreted relative to the identified Etherpad base dir: ${exports.root}`);
 
 /**
+ * The CACHE_DIR used by caching middleware
+ */
+exports.cacheDir = 'var/';
+
+/**
  * The app title, visible e.g. in the browser window
  */
 exports.title = "Etherpad";
@@ -739,6 +744,8 @@ exports.reloadSettings = function reloadSettings() {
     // using Unix socket for connectivity
     console.warn(`The settings file contains an empty string ("") for the "ip" parameter. The "port" parameter will be interpreted as the path to a Unix socket to bind at.`);
   }
+
+  exports.cacheDirPath = path.normalize(path.join(exports.root, exports.cacheDir + '/'));
 };
 
 // initially load settings

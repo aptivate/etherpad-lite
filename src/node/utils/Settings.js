@@ -33,6 +33,11 @@ var randomString = require("./randomstring");
 exports.root = path.normalize(path.join(npm.dir, ".."));
 
 /**
+ * The CACHE_DIR used by caching middleware
+ */
+exports.cacheDir = 'var/';
+
+/**
  * The app title, visible e.g. in the browser window
  */
 exports.title = "Etherpad";
@@ -238,6 +243,8 @@ exports.reloadSettings = function reloadSettings() {
   if(exports.dbType === "dirty"){
     console.warn("DirtyDB is used. This is fine for testing but not recommended for production.");
   }
+
+  exports.cacheDirPath = path.normalize(path.join(exports.root, exports.cacheDir + '/'));
 };
 
 // initially load settings

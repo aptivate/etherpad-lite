@@ -22,6 +22,7 @@ var hooks = require('./pluginfw/hooks');
 var chat = (function()
 {
   var isStuck = false;
+  var userAndChat = false;
   var gotInitialMessages = false;
   var historyPointer = 0;
   var chatMentions = 0;
@@ -41,7 +42,7 @@ var chat = (function()
       if(!isStuck || fromInitialCall) { // Stick it to
         padcookie.setPref("chatAlwaysVisible", true);
         $('#chatbox').addClass("stickyChat");
-        $('#chattext').css({"top":"0px"});
+        $('#titlesticky').hide();
         $('#editorcontainer').css({"right":"192px"});
         $('.stickyChat').css("top",$('#editorcontainer').offset().top+"px");
         isStuck = true;
@@ -49,18 +50,42 @@ var chat = (function()
         padcookie.setPref("chatAlwaysVisible", false);
         $('.stickyChat').css("top", "auto");
         $('#chatbox').removeClass("stickyChat");
-        $('#chattext').css({"top":"25px"});
+        $('#titlesticky').show();
         $('#editorcontainer').css({"right":"0px"});
         isStuck = false;
       }
     },
+    chatAndUsers: function(fromInitialCall)
+    {
+      if(!userAndChat || fromInitialCall){
+        padcookie.setPref("chatAndUsers", true);
+        chat.stickToScreen(true);
+        $('#options-stickychat').prop('checked', true)
+        $('#options-stickychat').prop("disabled", "disabled");
+        $('#users').addClass("chatAndUsers");
+        $("#chatbox").addClass("chatAndUsersChat");
+        userAndChat = true;
+      }else{
+        padcookie.setPref("chatAndUsers", false);
+        $('#options-stickychat').prop("disabled", false);
+        $('#users').removeClass("chatAndUsers");
+        $("#chatbox").removeClass("chatAndUsersChat");
+      }
+    },
     hide: function () 
     {
-      $("#chatcounter").text("0");
-      $("#chaticon").show();
-      $("#chatbox").hide();
-      $.gritter.removeAll();
-      $("#gritter-notice-wrapper").show();
+      // decide on hide logic based on chat window being maximized or not 
+      if ($('#options-stickychat').prop('checked')) {
+        chat.stickToScreen();
+        $('#options-stickychat').prop('checked', false);
+      }
+      else {  
+        $("#chatcounter").text("0");
+        $("#chaticon").show();
+        $("#chatbox").hide();
+        $.gritter.removeAll();
+        $("#gritter-notice-wrapper").show();
+      }
     },
     scrollDown: function()
     {

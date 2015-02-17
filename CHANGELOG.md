@@ -1,3 +1,59 @@
+# 1.5.1
+ * NEW: High resolution Icon
+ * NEW: Use HTTPS for plugins.json download
+ * NEW: Add 'last update' column
+ * NEW: Show users and chat at the same time
+ * NEW: Support io.js
+ * Fix: removeAttributeOnLine now works properly
+ * Fix: Plugin search and list
+ * Fix: Issue where unauthed request could cause error
+ * Fix: Privacy issue with .etherpad export
+ * Fix: Freeze deps to improve bisectability
+ * Fix: IE, everything. IE is so broken.
+ * Fix: Timeslider proxy
+ * Fix: All backend tests pass
+ * Fix: Better support for Export into HTML
+ * Fix: Timeslider stars
+ * Fix: Translation update
+ * Fix: Check filesystem if Abiword exists
+ * Fix: Docs formatting
+ * Fix: Move Save Revision notification to a gritter message
+ * Fix: UeberDB MySQL Timeout issue
+ * Fix: Indented +9 list items
+ * Fix: Don't paste on middle click of link
+ * SECURITY Fix: Issue where a malformed URL could cause EP to disclose installation location
+
+# 1.5.0
+ * NEW: Lots of performance improvements for page load times
+ * NEW: Hook for adding CSS to Exports
+ * NEW: Allow shardable socket io
+ * NEW: Allow UI to show when attr/prop is applied (CSS)
+ * NEW: Various scripts
+ * NEW: Export full fidelity pads (including authors etc.)
+ * NEW: Various front end tests
+ * NEW: Backend tests
+ * NEW: switchPad hook to instantly switch between pads
+ * NEW: Various translations
+ * NEW: Icon sets instead of images to provide quality high DPI experience
+ * Fix: HTML Import blocking / hanging server
+ * Fix: Export Bullet / Numbered lists HTML
+ * Fix: Swagger deprecated warning
+ * Fix: Bad session from crashing server
+ * Fix: Allow relative settings path
+ * Fix: Stop attributes being improperly assigned between 2 lines
+ * Fix: Copy / Move Pad API race condition
+ * Fix: Save all user preferences
+ * Fix: Upgrade majority of dependency inc upgrade to SocketIO1+
+ * Fix: Provide UI button to restore maximized chat window
+ * Fix: Timeslider UI Fix
+ * Fix: Remove Dokuwiki
+ * Fix: Remove long paths from windows build (stops error during extract)
+ * Fix: Various globals remvoed
+ * Fix: Move all scripts into bin/
+ * Fix: Various CSS bugfixes for Mobile devices
+ * Fix: Overflow Toolbar
+ * Fix: Line Attribute management
+
 # 1.4.1
  * NEW: Translations
  * NEW: userLeave Hook

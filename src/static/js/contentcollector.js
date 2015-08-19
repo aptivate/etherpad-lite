@@ -71,8 +71,9 @@ function makeContentCollector(collectStyles, abrowser, apool, domInterface, clas
     },
     nodeAttr: function(n, a)
     {
-      if(n.getAttribute == null) return null;
-      return n.getAttribute(a);
+      if(n.getAttribute != null) return n.getAttribute(a);
+      if(n.attribs != null) return n.attribs[a];
+      return null;
     },
     optNodeInnerHTML: function(n)
     {
@@ -86,6 +87,10 @@ function makeContentCollector(collectStyles, abrowser, apool, domInterface, clas
     "pre": 1,
     "li": 1
   };
+
+  _.each(hooks.callAll('ccRegisterBlockElements'), function(element){
+    _blockElems[element] = 1;
+  });
 
   function isBlockElement(n)
   {
@@ -293,7 +298,23 @@ function makeContentCollector(collectStyles, abrowser, apool, domInterface, clas
     {
       if (state.attribs[a])
       {
-        lst.push([a, 'true']);
+        // The following splitting of the attribute name is a workaround
+        // to enable the content collector to store key-value attributes
+        // see https://github.com/ether/etherpad-lite/issues/2567 for more information
+        // in long term the contentcollector should be refactored to get rid of this workaround
+        var ATTRIBUTE_SPLIT_STRING = "::";
+        
+        // see if attributeString is splittable
+        var attributeSplits = a.split(ATTRIBUTE_SPLIT_STRING);
+        if (attributeSplits.length > 1) {
+            // the attribute name follows the convention key::value
+            // so save it as a key value attribute
+            lst.push([attributeSplits[0], attributeSplits[1]]);
+        } else {
+            // the "normal" case, the attribute is just a switch
+            // so set it true
+            lst.push([a, 'true']);
+        }
       }
     }
     if (state.authorLevel > 0)
@@ -320,7 +341,6 @@ function makeContentCollector(collectStyles, abrowser, apool, domInterface, clas
         return [key, value];
       })
     );
-    
     lines.appendText('*', Changeset.makeAttribsString('+', attributes , apool));
   }
   cc.startNewLine = function(state)
@@ -458,8 +478,23 @@ function makeContentCollector(collectStyles, abrowser, apool, domInterface, clas
     else
     {
       var tname = (dom.nodeTagName(node) || "").toLowerCase();
+
+      if (tname == "img"){
+        var collectContentImage = hooks.callAll('collectContentImage', {
+          cc: cc,
+          state: state,
+          tname: tname,
+          styl: styl,
+          cls: cls,
+          node: node
+        });
+      }else{
+        // THIS SEEMS VERY HACKY! -- Please submit a better fix!
+        delete state.lineAttributes.img
+      }
+
       if (tname == "br")
-      {        
+      {
         this.breakLine = true;
         var tvalue = dom.nodeAttr(node, 'value');
         var induceLineBreak = hooks.callAll('collectContentLineBreak', {
@@ -482,8 +517,7 @@ function makeContentCollector(collectStyles, abrowser, apool, domInterface, clas
       else if (!isEmpty)
       {
         var styl = dom.nodeAttr(node, "style");
-        var cls = dom.nodeProp(node, "className");
-
+        var cls = dom.nodeAttr(node, "class");
         var isPre = (tname == "pre");
         if ((!isPre) && abrowser.safari)
         {
@@ -554,7 +588,9 @@ function makeContentCollector(collectStyles, abrowser, apool, domInterface, clas
           }
           else if ((tname == "div" || tname == "p") && cls && cls.match(/(?:^| )ace-line\b/))
           {
-            oldListTypeOrNull = (_enterList(state, type) || 'none');
+            // This has undesirable behavior in Chrome but is right in other browsers.
+            // See https://github.com/ether/etherpad-lite/issues/2412 for reasoning
+            if(!abrowser.chrome) oldListTypeOrNull = (_enterList(state, type) || 'none');
           }
           if (className2Author && cls)
           {

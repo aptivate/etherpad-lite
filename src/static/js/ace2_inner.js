@@ -608,8 +608,11 @@ function Ace2Inner(){
 
     // Chrome can't handle the truth..  If CSS rule white-space:pre-wrap
     // is true then any paste event will insert two lines..
+    // Sadly this will mean you get a walking Caret in Chrome when clicking on a URL
+    // So this has to be set to pre-wrap ;(
+    // We need to file a bug w/ the Chromium team.
     if(browser.chrome){
-      $("#innerdocbody").css({"white-space":"normal"});
+      $("#innerdocbody").addClass("noprewrap");
     }
 
   }
@@ -1920,7 +1923,11 @@ function Ace2Inner(){
     if (charsLeft === 0)
     {
       var index = 0;
-      browser.msie = false; // Temp fix to resolve enter and backspace issues..
+
+      if (browser.msie && parseInt(browser.version) >= 11) {
+        browser.msie = false; // Temp fix to resolve enter and backspace issues..
+        // Note that this makes MSIE behave like modern browsers..
+      }
       if (browser.msie && line == (rep.lines.length() - 1) && lineNode.childNodes.length === 0)
       {
         // best to stay at end of last empty div in IE
@@ -1975,7 +1982,11 @@ function Ace2Inner(){
 
   function nodeText(n)
   {
-    return n.innerText || n.textContent || n.nodeValue || '';
+      if (browser.msie) {
+	  return n.innerText;
+      } else {
+	  return n.textContent || n.nodeValue || '';
+      }
   }
 
   function getLineAndCharForPoint(point)
@@ -2322,93 +2333,72 @@ function Ace2Inner(){
   }
   editorInfo.ace_setAttributeOnSelection = setAttributeOnSelection;
 
+
   function getAttributeOnSelection(attributeName){
-    if (!(rep.selStart && rep.selEnd)) return;
-
-    // get the previous/next characters formatting when we have nothing selected
-    // To fix this we just change the focus area, we don't actually check anything yet.
-    if(rep.selStart[1] == rep.selEnd[1]){
-      // if we're at the beginning of a line bump end forward so we get the right attribute
-      if(rep.selStart[1] == 0 && rep.selEnd[1] == 0){
-        rep.selEnd[1] = 1;
-      }
-      if(rep.selStart[1] < 0){
-        rep.selStart[1] = 0;
-      }
-      var line = rep.lines.atIndex(rep.selStart[0]);
-      // if we're at the end of the line bmp the start back 1 so we get hte attribute
-      if(rep.selEnd[1] == line.text.length){
-        rep.selStart[1] = rep.selStart[1] -1;
-      }
-    }
-
-    // Do the detection
-    var selectionAllHasIt = true;
+    if (!(rep.selStart && rep.selEnd)) return
+    
     var withIt = Changeset.makeAttribsString('+', [
       [attributeName, 'true']
     ], rep.apool);
     var withItRegex = new RegExp(withIt.replace(/\*/g, '\\*') + "(\\*|$)");
-
     function hasIt(attribs)
     {
       return withItRegex.test(attribs);
     }
 
-    var selStartLine = rep.selStart[0];
-    var selEndLine = rep.selEnd[0];
-    for (var n = selStartLine; n <= selEndLine; n++)
-    {
-      var opIter = Changeset.opIterator(rep.alines[n]);
-      var indexIntoLine = 0;
-      var selectionStartInLine = 0;
-      var selectionEndInLine = rep.lines.atIndex(n).text.length; // exclude newline
-      if(rep.lines.atIndex(n).text.length == 0){
-        return false; // If the line length is 0 we basically treat it as having no formatting
+    return rangeHasAttrib(rep.selStart, rep.selEnd)
+    
+    function rangeHasAttrib(selStart, selEnd) {
+      // if range is collapsed -> no attribs in range
+      if(selStart[1] == selEnd[1] && selStart[0] == selEnd[0]) return false
+      
+      if(selStart[0] != selEnd[0]) { // -> More than one line selected
+        var hasAttrib = true
+        
+        // from selStart to the end of the first line
+        hasAttrib = hasAttrib && rangeHasAttrib(selStart, [selStart[0], rep.lines.atIndex(selStart[0]).text.length])
+
+        // for all lines in between
+        for(var n=selStart[0]+1; n < selEnd[0]; n++) {
+          hasAttrib = hasAttrib && rangeHasAttrib([n, 0], [n, rep.lines.atIndex(n).text.length])
+        }
+
+        // for the last, potentially partial, line
+        hasAttrib = hasAttrib && rangeHasAttrib([selEnd[0], 0], [selEnd[0], selEnd[1]])
+        
+        return hasAttrib
       }
-      if(rep.selStart[1] == rep.selEnd[1] && rep.selStart[1] == rep.lines.atIndex(n).text.length){
-        return false; // If we're at the end of a line we treat it as having no formatting
-      }
-      if(rep.selStart[1] == 0 && rep.selEnd[1] == 0){
-        rep.selEnd[1] == 1;
-      }
-      if(rep.selEnd[1] == -1){
-        rep.selEnd[1] = 1; // sometimes rep.selEnd is -1, not sure why..  When it is we should look at the first char
-      }
-      if (n == selStartLine)
-      {
-        selectionStartInLine = rep.selStart[1];
-      }
-      if (n == selEndLine)
-      {
-        selectionEndInLine = rep.selEnd[1];
-      }
-      while (opIter.hasNext())
-      {
+      
+      // Logic tells us we now have a range on a single line
+      
+      var lineNum = selStart[0]
+        , start = selStart[1]
+        , end = selEnd[1]
+        , hasAttrib = true
+      
+      // Iterate over attribs on this line
+      
+      var opIter = Changeset.opIterator(rep.alines[lineNum])
+        , indexIntoLine = 0
+      
+      while (opIter.hasNext()) {
         var op = opIter.next();
         var opStartInLine = indexIntoLine;
         var opEndInLine = opStartInLine + op.chars;
-        if (!hasIt(op.attribs))
-        {
+        if (!hasIt(op.attribs)) {
           // does op overlap selection?
-          if (!(opEndInLine <= selectionStartInLine || opStartInLine >= selectionEndInLine))
-          {
-            selectionAllHasIt = false;
+          if (!(opEndInLine <= start || opStartInLine >= end)) {
+            hasAttrib = false; // since it's overlapping but hasn't got the attrib -> range hasn't got it
             break;
           }
         }
         indexIntoLine = opEndInLine;
       }
-      if (!selectionAllHasIt)
-      {
-        break;
-      }
-    }
-    if(selectionAllHasIt){
-      return true;
-    }else{
-      return false;
+      
+      return hasAttrib
     }
   }
+  
   editorInfo.ace_getAttributeOnSelection = getAttributeOnSelection;
 
   function toggleAttributeOnSelection(attributeName)
@@ -3313,6 +3303,15 @@ function Ace2Inner(){
     return [rep.lines.offsetOfIndex(lineRange[0]), rep.lines.offsetOfIndex(lineRange[1])];
   }
 
+  function handleCut(evt)
+  {
+    inCallStackIfNecessary("handleCut", function()
+    {
+      doDeleteKey(evt);
+    });
+    return true;
+  }
+
   function handleClick(evt)
   {
     inCallStackIfNecessary("handleClick", function()
@@ -3385,7 +3384,7 @@ function Ace2Inner(){
           renumberList(lineNum + 1);//trigger renumbering of list that may be right after
         }
       }
-      else if (lineNum + 1 < rep.lines.length())
+      else if (lineNum + 1 <= rep.lines.length())
       {
         performDocumentReplaceSelection('\n');
         setLineListType(lineNum + 1, type+level);
@@ -3627,6 +3626,8 @@ function Ace2Inner(){
     var charCode = evt.charCode;
     var keyCode = evt.keyCode;
     var which = evt.which;
+    var altKey = evt.altKey;
+    var shiftKey = evt.shiftKey;
 
     // prevent ESC key
     if (keyCode == 27)
@@ -3643,6 +3644,7 @@ function Ace2Inner(){
     }else{
       var lineHeight = myselection.focusNode.offsetHeight; // line height of blank lines
     }
+
     var heightOfChatIcon = parent.parent.$('#chaticon').height(); // height of the chat icon button
     lineHeight = (lineHeight *2) + heightOfChatIcon;
     var viewport = getViewPortTopBottom();
@@ -3667,7 +3669,6 @@ function Ace2Inner(){
     if (keyCode == 13 && browser.opera && (type == "keypress")){
       return; // This stops double enters in Opera but double Tabs still show on single tab keypress, adding keyCode == 9 to this doesn't help as the event is fired twice
     }
-
     var specialHandled = false;
     var isTypeForSpecialKey = ((browser.msie || browser.safari || browser.chrome) ? (type == "keydown") : (type == "keypress"));
     var isTypeForCmdKey = ((browser.msie || browser.safari || browser.chrome) ? (type == "keydown") : (type == "keypress"));
@@ -3684,6 +3685,11 @@ function Ace2Inner(){
           stopped = true;
         }
       }
+      else if (evt.key === "Dead"){
+        // If it's a dead key we don't want to do any Etherpad behavior.
+        stopped = true;
+        return true;
+      }
       else if (type == "keydown")
       {
         outsideKeyDown(evt);
@@ -3698,6 +3704,101 @@ function Ace2Inner(){
           evt:evt
         });
         specialHandled = (specialHandledInHook&&specialHandledInHook.length>0)?specialHandledInHook[0]:specialHandled;
+        if ((!specialHandled) && altKey && isTypeForSpecialKey && keyCode == 120){
+          // Alt F9 focuses on the File Menu and/or editbar.
+          // Note that while most editors use Alt F10 this is not desirable
+          // As ubuntu cannot use Alt F10....
+          // Focus on the editbar. -- TODO: Move Focus back to previous state (we know it so we can use it)
+          var firstEditbarElement = parent.parent.$('#editbar').children("ul").first().children().first().children().first().children().first();
+          $(this).blur(); 
+          firstEditbarElement.focus();
+          evt.preventDefault();
+        }
+        if ((!specialHandled) && altKey && keyCode == 67 && type === "keydown"){
+          // Alt c focuses on the Chat window
+          $(this).blur(); 
+          parent.parent.chat.show();
+          parent.parent.$("#chatinput").focus();
+          evt.preventDefault();
+        }
+        if ((!specialHandled) && evt.ctrlKey && shiftKey && keyCode == 50 && type === "keydown"){
+          // Control-Shift-2 shows a gritter popup showing a line author
+          var lineNumber = rep.selEnd[0];
+          var alineAttrs = rep.alines[lineNumber];
+          var apool = rep.apool;
+
+          // TODO: support selection ranges
+          // TODO: Still work when authorship colors have been cleared
+          // TODO: i18n
+          // TODO: There appears to be a race condition or so.
+
+          var author = null;
+          if (alineAttrs) {
+            var authors = [];
+            var authorNames = [];
+            var opIter = Changeset.opIterator(alineAttrs);
+
+            while (opIter.hasNext()){
+              var op = opIter.next();
+              authorId = Changeset.opAttributeValue(op, 'author', apool);
+
+              // Only push unique authors and ones with values
+              if(authors.indexOf(authorId) === -1 && authorId !== ""){
+                authors.push(authorId);
+              }
+
+            }
+
+          }
+
+          // No author information is available IE on a new pad.
+          if(authors.length === 0){
+            var authorString = "No author information is available";
+          }
+          else{
+            // Known authors info, both current and historical
+            var padAuthors = parent.parent.pad.userList();
+            var authorObj = {};
+            authors.forEach(function(authorId){
+              padAuthors.forEach(function(padAuthor){
+                // If the person doing the lookup is the author..
+                if(padAuthor.userId === authorId){
+                  if(parent.parent.clientVars.userId === authorId){
+                    authorObj = {
+                      name: "Me"
+                    }
+                  }else{
+                    authorObj = padAuthor;
+                  }
+                }
+              });
+              if(!authorObj){
+                author = "Unknown";
+                return;
+              }
+              author = authorObj.name;
+              if(!author) author = "Unknown";
+              authorNames.push(author);
+            })
+          }
+          if(authors.length === 1){
+            var authorString = "The author of this line is " + authorNames;
+          }
+          if(authors.length > 1){
+            var authorString = "The authors of this line are " + authorNames.join(" & ");
+	  }
+
+          parent.parent.$.gritter.add({
+            // (string | mandatory) the heading of the notification
+            title: 'Line Authors',
+            // (string | mandatory) the text inside the notification
+            text: authorString,
+            // (bool | optional) if you want it to fade out on its own or just sit there
+            sticky: false,
+            // (int | optional) the time you want it to be alive for before fading out
+            time: '4000'
+          });
+        }
         if ((!specialHandled) && isTypeForSpecialKey && keyCode == 8)
         {
           // "delete" key; in mozilla, if we're at the beginning of a line, normalize now,
@@ -3793,7 +3894,7 @@ function Ace2Inner(){
           toggleAttributeOnSelection('underline');
           specialHandled = true;
         }
-       if ((!specialHandled) && isTypeForCmdKey && String.fromCharCode(which).toLowerCase() == "5" && (evt.metaKey || evt.ctrlKey))
+        if ((!specialHandled) && isTypeForCmdKey && String.fromCharCode(which).toLowerCase() == "5" && (evt.metaKey || evt.ctrlKey) && evt.altKey !== true)
         {
           // cmd-5 (strikethrough)
           fastIncorp(13);
@@ -3809,7 +3910,7 @@ function Ace2Inner(){
           doInsertUnorderedList()
           specialHandled = true;
 	}
-        if ((!specialHandled) && isTypeForCmdKey && String.fromCharCode(which).toLowerCase() == "n" && (evt.metaKey || evt.ctrlKey) && evt.shiftKey)
+        if ((!specialHandled) && isTypeForCmdKey && (String.fromCharCode(which).toLowerCase() == "n" || String.fromCharCode(which) == 1) && (evt.metaKey || evt.ctrlKey) && evt.shiftKey)
         {
           // cmd-shift-N (orderedlist)
           fastIncorp(9);
@@ -4854,6 +4955,11 @@ function Ace2Inner(){
     $(document).on("keypress", handleKeyEvent);
     $(document).on("keyup", handleKeyEvent);
     $(document).on("click", handleClick);
+
+    // Disabled: https://github.com/ether/etherpad-lite/issues/2546
+    // Will break OL re-numbering: https://github.com/ether/etherpad-lite/pull/2533
+    // $(document).on("cut", handleCut); 
+
     $(root).on("blur", handleBlur);
     if (browser.msie)
     {
@@ -4863,7 +4969,10 @@ function Ace2Inner(){
 
     // Don't paste on middle click of links
     $(root).on("paste", function(e){
-      if(e.target.a){
+      // TODO: this breaks pasting strings into URLS when using 
+      // Control C and Control V -- the Event is never available
+      // here.. :(
+      if(e.target.a || e.target.localName === "a"){
         e.preventDefault();
       }
     })

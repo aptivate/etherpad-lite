@@ -24,6 +24,10 @@ exports.setPadRaw = function(padId, records, callback){
   async.eachSeries(Object.keys(records), function(key, cb){
     var value = records[key]
 
+    if(!value){
+      return setImmediate(cb);
+    }
+
     // Author data
     if(value.padIDs){
       // rewrite author pad ids
@@ -34,7 +38,9 @@ exports.setPadRaw = function(padId, records, callback){
       db.get(key, function(err, author){
         if(author){
           // Yes, add the padID to the author..
-          author.padIDs.push(padId);
+          if( Object.prototype.toString.call(author) === '[object Array]'){
+            author.padIDs.push(padId);
+          }
           value = author;
         }else{
           // No, create a new array with the author info in
@@ -61,7 +67,7 @@ exports.setPadRaw = function(padId, records, callback){
     // Write the value to the server
     db.set(newKey, value);
 
-    cb();
+    setImmediate(cb);
   }, function(){
     callback(null, true);
   });

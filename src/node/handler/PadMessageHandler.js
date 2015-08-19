@@ -190,6 +190,16 @@ exports.handleMessage = function(client, message)
   }
 
   var handleMessageHook = function(callback){
+    // Allow plugins to bypass the readonly message blocker
+    hooks.aCallAll("handleMessageSecurity", { client: client, message: message }, function ( err, messages ) {
+      if(ERR(err, callback)) return;
+      _.each(messages, function(newMessage){
+        if ( newMessage === true ) {
+          thisSession.readonly = false;
+        }
+      });
+    });
+
     var dropMessage = false;
     // Call handleMessage hook. If a plugin returns null, the message will be dropped. Note that for all messages
     // handleMessage will be called, even if the client is not authorized
@@ -204,6 +214,7 @@ exports.handleMessage = function(client, message)
       // If no plugins explicitly told us to drop the message, its ok to proceed
       if(!dropMessage){ callback() };
     });
+
   }
 
   var finalHandler = function () {
@@ -533,14 +544,22 @@ function handleUserInfoUpdate(client, message)
     return;
   }
 
+  // Check that we have a valid session and author to update.
+  var session = sessioninfos[client.id];
+  if(!session || !session.author || !session.padId)
+  {
+    messageLogger.warn("Dropped message, USERINFO_UPDATE Session not ready." + message.data);
+    return;
+  }
+
   //Find out the author name of this session
-  var author = sessioninfos[client.id].author;
+  var author = session.author;
 
   //Tell the authorManager about the new attributes
   authorManager.setAuthorColorId(author, message.data.userInfo.colorId);
   authorManager.setAuthorName(author, message.data.userInfo.name);
 
-  var padId = sessioninfos[client.id].padId;
+  var padId = session.padId;
 
   var infoMsg = {
     type: "COLLABROOM",
@@ -656,12 +675,17 @@ function handleUserChanges(data, cb)
           , op
         while(iterator.hasNext()) {
           op = iterator.next()
-          if(op.opcode != '+') continue;
+
+          //+ can add text with attribs
+          //= can change or add attribs
+          //- can have attribs, but they are discarded and don't show up in the attribs - but do show up in the  pool
+
           op.attribs.split('*').forEach(function(attr) {
             if(!attr) return
             attr = wireApool.getAttrib(attr)
             if(!attr) return
-            if('author' == attr[0] && attr[1] != thisSession.author) throw new Error("Trying to submit changes as another author in changeset "+changeset);
+            //the empty author is used in the clearAuthorship functionality so this should be the only exception
+            if('author' == attr[0] && (attr[1] != thisSession.author && attr[1] != '')) throw new Error("Trying to submit changes as another author in changeset "+changeset);
           })
         }
 
@@ -757,8 +781,9 @@ function handleUserChanges(data, cb)
       }
 
       // Make sure the pad always ends with an empty line.
-      if (pad.text().lastIndexOf("\n\n") != pad.text().length-2) {
-        var nlChangeset = Changeset.makeSplice(pad.text(), pad.text().length-1, 0, "\n");
+      if (pad.text().lastIndexOf("\n") != pad.text().length-1) {
+        var nlChangeset = Changeset.makeSplice(pad.text(), pad.text().length-1,
+                                               0, "\n");
         pad.appendRevision(nlChangeset);
       }
 
@@ -1177,6 +1202,7 @@ function handleClientReady(client, message)
           "userIsGuest": true,
           "userColor": authorColorId,
           "padId": message.padId,
+          "padOptions": settings.padOptions,
           "initialTitle": "Pad: " + message.padId,
           "opts": {},
           // tell the client the number of the latest chat-message, which will be
@@ -1629,10 +1655,15 @@ function composePadChangesets(padId, startNum, endNum, callback)
       changeset = changesets[startNum];
       var pool = pad.apool();
 
-      for(var r=startNum+1;r<endNum;r++)
-      {
-        var cs = changesets[r];
-        changeset = Changeset.compose(changeset, cs, pool);
+      try {
+        for(var r=startNum+1;r<endNum;r++) {
+          var cs = changesets[r];
+          changeset = Changeset.compose(changeset, cs, pool);
+        }
+      } catch(e){
+        // r-1 indicates the rev that was build starting with startNum, applying startNum+1, +2, +3
+        console.warn("failed to compose cs in pad:",padId," startrev:",startNum," current rev:",r);
+        return callback(e);
       }
 
       callback(null);

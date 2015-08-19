@@ -11,7 +11,10 @@ span { cursor: auto; }
   background: #acf;
 }
 
-a { cursor: pointer !important; }
+a { 
+  cursor: pointer !important; 
+  white-space:pre-wrap;
+}
 
 ul, ol, li {
   padding: 0;
@@ -95,8 +98,28 @@ body.grayedout { background-color: #eee !important }
 }
 
 body.doesWrap {
-  white-space: pre-wrap; /*Must be pre-wrap to keep trailing spaces. Otherwise you get a zombie caret, walking around your screen (see #1766), WARNING: Enabling this causes Paste as plain text in Chrome to remove line breaks, this is probably undesirable */
+  /* white-space: pre-wrap; */
+
+  /* 
+    Must be pre-wrap to keep trailing spaces. Otherwise you get a zombie caret, 
+    walking around your screen (see #1766).
+    WARNING: Enabling this causes Paste as plain text in Chrome to remove line breaks
+    this is probably undesirable 
+    WARNING: This causes copy & paste events to lose bold etc. attributes
+    NOTE: The walking-zombie caret issue seems to have been fixed in FF upstream
+    so let's try diabling pre-wrap and see how we get on now.
+    For more details see: https://github.com/ether/etherpad-lite/issues/2574
+  */
   word-wrap: break-word; /* fix for issue #1648 - firefox not wrapping long lines (without spaces) correctly */
+}
+
+.noprewrap{
+  white-space: normal;
+}
+
+body.doesWrap:not(.noprewrap) > div{
+  /* Related to #1766 */
+  white-space: pre-wrap;
 }
 
 #innerdocbody {
@@ -191,8 +214,9 @@ ol {
   list-style-type: decimal;
 }
 
+/* Fixes #2223 and #1836 */
 ol > li {
-  display:inline;   
+  display:block;
 }
 
 /* Set the indentation */

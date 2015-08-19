@@ -1,8 +1,10 @@
 var assert = require('assert')
  supertest = require(__dirname+'/../../../../src/node_modules/supertest'),
         fs = require('fs'),
-       api = supertest('http://localhost:9001');
-      path = require('path');
+  settings = require(__dirname+'/../../loadSettings').loadSettings(),
+       api = supertest('http://'+settings.ip+":"+settings.port),
+      path = require('path'),
+     async = require(__dirname+'/../../../../src/node_modules/async');
 
 var filePath = path.join(__dirname, '../../../../APIKEY.txt');
 
@@ -48,33 +50,39 @@ describe('Permission', function(){
 -> deletePad -- This gives us a guaranteed clear environment
  -> createPad
   -> getRevisions -- Should be 0
-   -> getHTML -- Should be the default pad text in HTML format
-    -> deletePad -- Should just delete a pad
-     -> getHTML -- Should return an error
-      -> createPad(withText)
-       -> getText -- Should have the text specified above as the pad text
-        -> setText
-         -> getText -- Should be the text set before
-          -> getRevisions -- Should be 0 still?
-           -> padUsersCount -- Should be 0
-            -> getReadOnlyId -- Should be a value
-             -> listAuthorsOfPad(padID) -- should be empty array?
-              -> getLastEdited(padID) -- Should be when pad was made
-               -> setText(padId)
-                -> getLastEdited(padID) -- Should be when setText was performed
-                 -> padUsers(padID) -- Should be when setText was performed
-
-                  -> setText(padId, "hello world")
+   -> getSavedRevisionsCount(padID) -- Should be 0
+    -> listSavedRevisions(padID) -- Should be an empty array
+     -> getHTML -- Should be the default pad text in HTML format
+      -> deletePad -- Should just delete a pad
+       -> getHTML -- Should return an error
+        -> createPad(withText)
+         -> getText -- Should have the text specified above as the pad text
+          -> setText
+           -> getText -- Should be the text set before
+            -> getRevisions -- Should be 0 still?
+             -> saveRevision
+              -> getSavedRevisionsCount(padID) -- Should be 0 still?
+               -> listSavedRevisions(padID) -- Should be an empty array still ?
+                -> padUsersCount -- Should be 0
+                 -> getReadOnlyId -- Should be a value
+                  -> listAuthorsOfPad(padID) -- should be empty array?
                    -> getLastEdited(padID) -- Should be when pad was made
-                    -> getText(padId) -- Should be "hello world"
-                     -> movePad(padID, newPadId) -- Should provide consistant pad data
-                      -> getText(newPadId) -- Should be "hello world"
-                       -> movePad(newPadID, originalPadId) -- Should provide consistant pad data
-                        -> getText(originalPadId) -- Should be "hello world"
-                         -> getLastEdited(padID) -- Should not be 0
-                          -> setHTML(padID) -- Should fail on invalid HTML
-                           -> setHTML(padID) *3 -- Should fail on invalid HTML
-                            -> getHTML(padID) -- Should return HTML close to posted HTML
+                    -> setText(padId)
+                     -> getLastEdited(padID) -- Should be when setText was performed
+                      -> padUsers(padID) -- Should be when setText was performed
+
+                       -> setText(padId, "hello world")
+                        -> getLastEdited(padID) -- Should be when pad was made
+                         -> getText(padId) -- Should be "hello world"
+                          -> movePad(padID, newPadId) -- Should provide consistant pad data
+                           -> getText(newPadId) -- Should be "hello world"
+                            -> movePad(newPadID, originalPadId) -- Should provide consistant pad data
+                             -> getText(originalPadId) -- Should be "hello world"
+                              -> getLastEdited(padID) -- Should not be 0
+                               -> setHTML(padID) -- Should fail on invalid HTML
+                                -> setHTML(padID) *3 -- Should fail on invalid HTML
+                                 -> getHTML(padID) -- Should return HTML close to posted HTML
+                                  -> createPad -- Tries to create pads with bad url characters
 
 */
 
@@ -109,11 +117,35 @@ describe('getRevisionsCount', function(){
   });
 })
 
+describe('getSavedRevisionsCount', function(){
+  it('gets saved revisions count of Pad', function(done) {
+    api.get(endPoint('getSavedRevisionsCount')+"&padID="+testPadId)
+    .expect(function(res){
+      if(res.body.code !== 0) throw new Error("Unable to get Saved Revisions Count");
+      if(res.body.data.savedRevisions !== 0) throw new Error("Incorrect Saved Revisions Count");
+    })
+    .expect('Content-Type', /json/)
+    .expect(200, done)
+  });
+})
+
+describe('listSavedRevisions', function(){
+  it('gets saved revision list of Pad', function(done) {
+    api.get(endPoint('listSavedRevisions')+"&padID="+testPadId)
+    .expect(function(res){
+      if(res.body.code !== 0) throw new Error("Unable to get Saved Revisions List");
+      if(!res.body.data.savedRevisions.equals([])) throw new Error("Incorrect Saved Revisions List");
+    })
+    .expect('Content-Type', /json/)
+    .expect(200, done)
+  });
+})
+
 describe('getHTML', function(){
   it('get the HTML of Pad', function(done) {
     api.get(endPoint('getHTML')+"&padID="+testPadId)
     .expect(function(res){
-      if(res.body.data.html.length <= 1) throw new Error("Unable to get Revision Count");
+      if(res.body.data.html.length <= 1) throw new Error("Unable to get the HTML");
     })
     .expect('Content-Type', /json/)
     .expect(200, done)
@@ -187,16 +219,50 @@ describe('getText', function(){
 })
 
 describe('getRevisionsCount', function(){
-  it('gets Revision Coutn of a Pad', function(done) {
+  it('gets Revision Count of a Pad', function(done) {
     api.get(endPoint('getRevisionsCount')+"&padID="+testPadId)
     .expect(function(res){
-      if(res.body.data.revisions !== 1) throw new Error("Unable to set text revision count")
+      if(res.body.data.revisions !== 1) throw new Error("Unable to get text revision count")
     })
     .expect('Content-Type', /json/)
     .expect(200, done)
   });
 })
 
+describe('saveRevision', function(){
+  it('saves Revision', function(done) {
+    api.get(endPoint('saveRevision')+"&padID="+testPadId)
+    .expect(function(res){
+      if(res.body.code !== 0) throw new Error("Unable to save Revision");
+    })
+    .expect('Content-Type', /json/)
+    .expect(200, done)
+  });
+})
+
+describe('getSavedRevisionsCount', function(){
+  it('gets saved revisions count of Pad', function(done) {
+    api.get(endPoint('getSavedRevisionsCount')+"&padID="+testPadId)
+    .expect(function(res){
+      if(res.body.code !== 0) throw new Error("Unable to get Saved Revisions Count");
+      if(res.body.data.savedRevisions !== 1) throw new Error("Incorrect Saved Revisions Count");
+    })
+    .expect('Content-Type', /json/)
+    .expect(200, done)
+  });
+})
+
+describe('listSavedRevisions', function(){
+  it('gets saved revision list of Pad', function(done) {
+    api.get(endPoint('listSavedRevisions')+"&padID="+testPadId)
+    .expect(function(res){
+      if(res.body.code !== 0) throw new Error("Unable to get Saved Revisions List");
+      if(!res.body.data.savedRevisions.equals([1])) throw new Error("Incorrect Saved Revisions List");
+    })
+    .expect('Content-Type', /json/)
+    .expect(200, done)
+  });
+})
 describe('padUsersCount', function(){
   it('gets User Count of a Pad', function(done) {
     api.get(endPoint('padUsersCount')+"&padID="+testPadId)
@@ -328,6 +394,29 @@ describe('getText', function(){
   });
 })
 
+describe('setText', function(){
+  it('Sets text on a pad Id including an explicit newline', function(done) {
+    api.get(endPoint('setText')+"&padID="+testPadId+"&text="+text+'%0A')
+    .expect(function(res){
+      if(res.body.code !== 0) throw new Error("Pad Set Text failed")
+    })
+    .expect('Content-Type', /json/)
+    .expect(200, done)
+  });
+})
+
+describe('getText', function(){
+  it("Gets text on a pad Id and doesn't have an excess newline", function(done) {
+    api.get(endPoint('getText')+"&padID="+testPadId)
+    .expect(function(res){
+      if(res.body.code !== 0) throw new Error("Pad Get Text failed")
+      if(res.body.data.text !== text+"\n") throw new Error("Pad Text not set properly");
+    })
+    .expect('Content-Type', /json/)
+    .expect(200, done)
+  });
+})
+
 describe('getLastEdited', function(){
   it('Gets when pad was last edited', function(done) {
     api.get(endPoint('getLastEdited')+"&padID="+testPadId)
@@ -399,7 +488,6 @@ describe('setHTML', function(){
     var html = "<div><b>Hello HTML</title></head></div>";
     api.get(endPoint('setHTML')+"&padID="+testPadId+"&html="+html)
     .expect(function(res){
-console.log(res.body.code);
       if(res.body.code !== 1) throw new Error("Allowing crappy HTML to be imported")
     })
     .expect('Content-Type', /json/)
@@ -428,6 +516,23 @@ describe('getHTML', function(){
     })
     .expect('Content-Type', /json/)
     .expect(200, done)
+  });
+})
+
+describe('createPad', function(){
+  it('errors if pad can be created', function(done) {
+    var badUrlChars = ["/", "%23", "%3F", "%26"];
+    async.map(
+      badUrlChars, 
+      function (badUrlChar, cb) {
+        api.get(endPoint('createPad')+"&padID="+badUrlChar)
+        .expect(function(res){
+          if(res.body.code !== 1) throw new Error("Pad with bad characters was created");
+        })
+        .expect('Content-Type', /json/)
+        .end(cb);
+      },
+      done);
   });
 })
 
@@ -460,4 +565,26 @@ function generateLongText(){
     text += possible.charAt(Math.floor(Math.random() * possible.length));
   }
   return text;
+}
+
+// Need this to compare arrays (listSavedRevisions test)
+Array.prototype.equals = function (array) {
+    // if the other array is a falsy value, return
+    if (!array)
+        return false;
+    // compare lengths - can save a lot of time
+    if (this.length != array.length)
+        return false;
+    for (var i = 0, l=this.length; i < l; i++) {
+        // Check if we have nested arrays
+        if (this[i] instanceof Array && array[i] instanceof Array) {
+            // recurse into the nested arrays
+            if (!this[i].equals(array[i]))
+                return false;
+        } else if (this[i] != array[i]) {
+            // Warning - two different object instances will never be equal: {x:20} != {x:20}
+            return false;
+        }
+    }
+    return true;
 }

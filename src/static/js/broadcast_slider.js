@@ -166,6 +166,7 @@ function loadBroadcastSliderJS(fireWhenAllScriptsAreLoaded)
       padmodals.showModal("disconnected");
     }
 
+    // Throttle seems like overkill here...  Not sure why we do it!
     var fixPadHeight = _.throttle(function(){
       var height = $('#timeslider-top').height();
       $('#editorcontainerbox').css({marginTop: height});
@@ -290,6 +291,11 @@ function loadBroadcastSliderJS(fireWhenAllScriptsAreLoaded)
       
       $(document).keyup(function(e)
       {
+        // If focus is on editbar, don't do anything
+        var target = $(':focus');
+        if($(target).parents(".toolbar").length === 1){
+            return;
+        }
         var code = -1;
         if (!e) var e = window.event;
         if (e.keyCode) code = e.keyCode;
@@ -330,7 +336,6 @@ function loadBroadcastSliderJS(fireWhenAllScriptsAreLoaded)
           }
         }
         else if (code == 32) playpause();
-
       });
       
       $(window).resize(function()

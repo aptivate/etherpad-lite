@@ -1,0 +1,29 @@
+/* Styles for branding Lopad Private pad */
+
+#wrapper {
+    background: none repeat scroll 0 0 #f7f7f7;
+    border: 0 none;
+    box-shadow: none;
+    margin-top: 30px;
+
+}
+
+#title {
+    background-image: url("http://aptivate.org/static/images/aptivate-logo.png");
+    background-position: center top;
+    background-repeat: no-repeat;
+    font-size: 2em;
+    padding-top: 90px;
+    width: 350px;
+}
+
+#inner {
+    padding: 0.5em;
+    width: 600px !important;
+}
+
+.about, .center {
+    color: #666;
+    font-size: 0.9em;
+    max-width:inherit;
+}

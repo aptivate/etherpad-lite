@@ -6,3 +6,10 @@
       #editbar LI {border:1px solid #d5d5d5;}
     from pad.css
 */
+
+@media (max-width:600px) {
+  #sidediv { 
+    display: none !important;
+  }
+}
+

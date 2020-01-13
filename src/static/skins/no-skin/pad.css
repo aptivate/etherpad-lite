@@ -8,7 +8,7 @@
 */
 
 @media (max-width:600px) {
-  #sidediv { 
+  #sidediv {
     display: none !important;
   }
 }
